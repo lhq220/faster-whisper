@@ -1,0 +1,42 @@
+name: Vietnamese Speech to Text
+
+on:
+  workflow_dispatch:
+    inputs:
+      audio_file:
+        description: "Duong dan file am thanh"
+        required: true
+        default: "audio/test.mp3"
+
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Transcribe Vietnamese Audio
+        env:
+          AUDIO_FILE: ${{ inputs.audio_file }}
+        run: |
+          python scripts/transcribe_vi.py "$AUDIO_FILE"
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: vietnamese-transcription
+          path: output/
+          if-no-files-found: error
