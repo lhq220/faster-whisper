@@ -3,14 +3,15 @@ name: Vietnamese Speech to Text
 on:
   workflow_dispatch:
     inputs:
-      audio_file:
-        description: "Duong dan file am thanh"
+      audio_url:
+        description: "Link file MP3, WAV, M4A"
         required: true
-        default: "audio/test.mp3"
+        type: string
 
 jobs:
   transcribe:
     runs-on: ubuntu-latest
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -25,14 +26,44 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e .
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
 
-      - name: Transcribe Vietnamese Audio
+      - name: Download audio
         env:
-          AUDIO_FILE: ${{ inputs.audio_file }}
+          AUDIO_URL: ${{ inputs.audio_url }}
         run: |
-          python scripts/transcribe_vi.py "$AUDIO_FILE"
+          mkdir -p audio
+          python - <<'PY'
+          import os
+          import urllib.request
+
+          url = os.environ["AUDIO_URL"]
+
+          if not url.startswith("https://"):
+              raise ValueError("Only HTTPS URLs are supported")
+
+          request = urllib.request.Request(
+              url,
+              headers={"User-Agent": "Mozilla/5.0"}
+          )
+
+          with urllib.request.urlopen(request, timeout=120) as response:
+              content_type = response.headers.get("Content-Type", "")
+              if "text/html" in content_type:
+                  raise ValueError("URL points to an HTML page, not an audio file")
+
+              with open("audio/input_audio", "wb") as f:
+                  while True:
+                      chunk = response.read(1024 * 1024)
+                      if not chunk:
+                          break
+                      f.write(chunk)
+
+          print("Audio downloaded successfully")
+          PY
+
+      - name: Transcribe Vietnamese
+        run: |
+          python scripts/transcribe_vi.py audio/input_audio
 
       - name: Upload results
         uses: actions/upload-artifact@v4
